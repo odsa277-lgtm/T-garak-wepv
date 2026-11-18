@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>To’garaklar</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--tx:#1c2030;--mu:#6b7280;--ac:#4f46e5;--bd:#e5e7eb;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14161f;--card:#1e2130;--tx:#eef0f7;--mu:#9aa1b5;--bd:#303449;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14161f;--card:#1e2130;--tx:#eef0f7;--mu:#9aa1b5;--bd:#303449;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:env(safe-area-inset-top,0px)}
+h1{font-size:18px;margin:0}
+main{max-width:720px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+button{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:9px 14px;font:inherit;cursor:pointer}
+button.g{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+button.r{background:#dc2626}
+input,textarea{width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit;margin:6px 0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mu{color:var(--mu);font-size:13px}
+h2{font-size:17px;margin:4px 0 10px}
+.err{color:#dc2626;font-size:14px}
+.pw{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;font-family:monospace;font-size:13px}
+</style>
+</head>
+<body>
+<header><h1 id="ttl">📚 To’garaklar</h1><div id="hb"></div></header>
+<main id="app"></main>
+<script>
+const ALPH="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function pw(k){let s=k*7919+13,o=String(k).padStart(3,"0");for(let i=0;i<4;i++){s=(Math.imul(s,1103515245)+12345)>>>0;o+=ALPH[(s>>>10)%32];}return o}
+const PW={};for(let k=1;k<=100;k++)PW[pw(k)]=k;
+let db=null,user=null,circles=[],posts=[],qs=[],teacher=null,view="home",cur=null,msg="";
+let myName="";try{myName=localStorage.getItem("nm")||""}catch(e){}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=t=>new Date(t).toLocaleString("uz",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const snap=(c,set)=>db.collection(c).onSnapshot(s=>{set(s.docs.map(d=>({id:d.id,...d.data()})));const e=document.activeElement;if(!e||!/INPUT|TEXTAREA/.test(e.tagName)||!e.value)render()},()=>{});
+(async()=>{
+  try{user=await claude.use("user")}catch(e){}
+  try{db=await claude.use("db")}catch(e){}
+  if(db){snap("circles",v=>circles=v);snap("posts",v=>posts=v);snap("questions",v=>qs=v)}
+  render();
+})();
+function go(v,c){view=v;cur=c||null;msg="";render()}
+function render(){
+  const hb=$("#hb"),a=$("#app");
+  hb.innerHTML=view==="home"?'<button onclick="go(\'login\')">👩‍🏫 O’qituvchi paneli</button>':'<button class="g" onclick="'+(view==="teacher"?"teacher=null;":"")+'go(\'home\')">← Bosh sahifa</button>';
+  if(!db){a.innerHTML='<div class="card">Ma’lumotlar bazasi ulanmadi. Sahifani claude.ai orqali tizimga kirib oching.</div>';return}
+  if(view==="home")return home(a);
+  if(view==="login")return login(a);
+  if(view==="teacher")return teach(a);
+  if(view==="lobby")return lobby(a);
+  if(view==="pw")return pwl(a);
+}
+function home(a){
+  let h='<h2>Mavjud to’garaklar</h2>';
+  if(!circles.length)h+='<div class="card mu">Hozircha to’garak ochilmagan.</div>';
+  circles.sort((x,y)=>x.k-y.k).forEach(c=>{h+=`<div class="card row"><div><b>${esc(c.name)}</b><div class="mu">Ustoz: ${esc(c.teacher||"")}</div></div><button onclick="go('lobby','${c.id}')">Qo‘shilish</button></div>`});
+  a.innerHTML=h;
+}
+function login(a){
+  a.innerHTML=`<div class="card"><h2>O’qituvchi paneli</h2><input id="p" placeholder="Parolni kiriting" autocomplete="off"><div class="err">${msg}</div><button onclick="doLogin()">Kirish</button>${user&&user.isOwner&&user.isOwner()?' <button class="g" onclick="go(\'pw\')">Parollar ro‘yxati</button>':''}</div>`;
+}
+function doLogin(){
+  const p=$("#p").value.trim().toUpperCase();
+  if(PW[p]){teacher=PW[p];go("teacher")}else{msg="Parol noto‘g‘ri";render()}
+}
+function pwl(a){
+  let h='<div class="card"><h2>100 ta ustoz paroli</h2><div class="pw">';
+  for(let k=1;k<=100;k++)h+=`<div>${k}. ${pw(k)}</div>`;
+  a.innerHTML=h+'</div></div>';
+}
+function mine(){return circles.find(c=>c.k===teacher)}
+function teach(a){
+  const c=mine();
+  if(!c){
+    a.innerHTML=`<div class="card"><h2>Ustoz №${teacher}: to’garagingizni oching</h2><input id="tn" placeholder="Ismingiz"><input id="cn" placeholder="To’garak nomi"><button onclick="openCircle()">To‘garakni ochish</button></div>`;return}
+  const ps=posts.filter(p=>p.c===c.id).sort((x,y)=>y.t-x.t);
+  const q=qs.filter(p=>p.c===c.id).sort((x,y)=>y.t-x.t);
+  let h=`<div class="card"><h2>${esc(c.name)} — lobi xonangiz</h2><textarea id="tx" rows="3" placeholder="O‘quvchilarga xabar yozing..."></textarea><button onclick="addPost('${c.id}')">Yuborish</button></div><h2>E’lonlar</h2>`;
+  ps.forEach(p=>h+=`<div class="card"><div class="row"><span class="mu">${fmt(p.t)}</span><button class="r" onclick="del('posts','${p.id}')">O‘chirish</button></div>${esc(p.text).replace(/\n/g,"<br>")}</div>`);
+  h+='<h2>🔒 O‘quvchilar savollari (faqat sizga)</h2>';
+  if(!q.length)h+='<div class="card mu">Savol yo‘q.</div>';
+  q.forEach(p=>h+=`<div class="card"><div class="row"><b>${esc(p.who)}</b><span class="mu">${fmt(p.t)}</span></div>${esc(p.text).replace(/\n/g,"<br>")}</div>`);
+  a.innerHTML=h;
+}
+async function openCircle(){
+  const n=$("#cn").value.trim(),t=$("#tn").value.trim();if(!n||!t)return;
+  await db.collection("circles").doc("t"+teacher).set({k:teacher,id:"t"+teacher,name:n,teacher:t});
+}
+async function addPost(cid){
+  const v=$("#tx").value.trim();if(!v)return;
+  const id=uid();await db.collection("posts").doc(id).set({c:cid,text:v,t:Date.now()});
+}
+async function del(col,id){await db.collection(col).doc(id).delete()}
+function lobby(a){
+  const c=circles.find(x=>x.id===cur);if(!c){go("home");return}
+  const ps=posts.filter(p=>p.c===c.id).sort((x,y)=>y.t-x.t);
+  let h=`<div class="card"><h2>${esc(c.name)}</h2><div class="mu">Ustoz: ${esc(c.teacher)}</div></div>
+  <div class="card"><h2>❓ Ustozga savol bering</h2><input id="nm" placeholder="Ismingiz" value="${esc(myName)}"><textarea id="qt" rows="3" placeholder="Savolingiz (faqat ustoz ko‘radi)"></textarea><button onclick="ask('${c.id}')">Savol yuborish</button><div class="mu" id="ok"></div></div><h2>Ustoz xabarlari</h2>`;
+  if(!ps.length)h+='<div class="card mu">Hozircha xabar yo‘q.</div>';
+  ps.forEach(p=>h+=`<div class="card"><div class="mu">${fmt(p.t)}</div>${esc(p.text).replace(/\n/g,"<br>")}</div>`);
+  a.innerHTML=h;
+}
+async function ask(cid){
+  const n=$("#nm").value.trim(),t=$("#qt").value.trim();if(!n||!t)return;
+  myName=n;try{localStorage.setItem("nm",n)}catch(e){}
+  await db.collection("questions").doc(uid()).set({c:cid,who:n,text:t,t:Date.now()});
+  $("#qt").value="";$("#ok").textContent="Savol ustozga yuborildi ✅";
+}
+</script>
+</body>
+</html>
